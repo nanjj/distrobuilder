@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type alpineLinux struct {
@@ -61,10 +61,12 @@ func (s *alpineLinux) Run() error {
 		return fmt.Errorf("Failed to parse URL %q: %w", tarball, err)
 	}
 
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" &&
-		len(s.definition.Source.Keys) == 0 {
-		return errors.New("GPG keys are required if downloading from HTTP")
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
 	}
+
+	s.definition.Source.SkipVerification = skip
 
 	var fpath string
 
@@ -78,8 +80,7 @@ func (s *alpineLinux) Run() error {
 		return fmt.Errorf("Failed to download %q: %w", tarball, err)
 	}
 
-	// Force gpg checks when using http
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" {
+	if !s.definition.Source.SkipVerification {
 		_, err = s.DownloadHash(s.definition.Image, tarball+".asc", "", nil)
 		if err != nil {
 			return fmt.Errorf("Failed downloading %q: %w", tarball+".asc", err)
@@ -144,7 +145,7 @@ func (s *alpineLinux) Run() error {
 	}
 
 	// Fix bad permissions in Alpine tarballs
-	err = os.Chmod(s.rootfsDir, 0755)
+	err = os.Chmod(s.rootfsDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to chmod %q: %w", s.rootfsDir, err)
 	}
@@ -159,7 +160,7 @@ func (s *alpineLinux) getLatestRelease(baseURL, release string, arch string) (st
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(baseURL)
+		resp, err = s.client.Get(baseURL)
 		if err != nil {
 			return fmt.Errorf("Failed to GET %q: %w", baseURL, err)
 		}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 func TestDumpGeneratorRunLXC(t *testing.T) {
@@ -109,7 +109,8 @@ func TestDumpGeneratorRunIncus(t *testing.T) {
 	err = generator.RunIncus(nil, shared.DefinitionTargetIncus{
 		VM: shared.DefinitionTargetIncusVM{
 			Filesystem: "ext4",
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(rootfsDir, "hello", "world"))
@@ -136,7 +137,8 @@ func TestDumpGeneratorRunIncus(t *testing.T) {
 	err = generator.RunIncus(nil, shared.DefinitionTargetIncus{
 		VM: shared.DefinitionTargetIncusVM{
 			Filesystem: "ext4",
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	require.FileExists(t, filepath.Join(rootfsDir, "hello", "world"))

@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type rockylinux struct {
@@ -42,19 +41,46 @@ func (s *rockylinux) Run() error {
 		return fmt.Errorf("Failed to parse URL %q: %w", baseURL, err)
 	}
 
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
+	}
+
+	s.definition.Source.SkipVerification = skip
+
 	checksumFile := ""
 	if !s.definition.Source.SkipVerification {
-		// Force gpg checks when using http
-		if url.Scheme != "https" {
-			if len(s.definition.Source.Keys) == 0 {
-				return errors.New("GPG keys are required if downloading from HTTP")
-			}
+		// Rocky Linux 8 and 9 do not provide any GPG signature for the CHECKSUM file.
+		// Rocky Linux 10 provides a detached signature.
+		majorVersion := strings.Split(s.definition.Image.Release, ".")[0]
 
-			checksumFile = "CHECKSUM"
+		checksumFile = "CHECKSUM"
 
-			_, err := s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
+		switch majorVersion {
+		case "8", "9":
+			fpath, err = s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
 			if err != nil {
 				return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile, err)
+			}
+
+		default:
+			fpath, err = s.DownloadHash(s.definition.Image, baseURL+checksumFile+".asc", "", nil)
+			if err != nil {
+				return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile+".asc", err)
+			}
+
+			_, err = s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
+			if err != nil {
+				return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile, err)
+			}
+
+			valid, err := s.VerifyFile(filepath.Join(fpath, checksumFile), filepath.Join(fpath, checksumFile+".asc"))
+			if err != nil {
+				return fmt.Errorf("Failed to verify %q: %w", checksumFile, err)
+			}
+
+			if !valid {
+				return fmt.Errorf("Invalid signature for %q", checksumFile)
 			}
 		}
 	}
@@ -226,6 +252,12 @@ gpgcheck=1
 enabled=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-rockyofficial
 EOF
+
+	if [ "${RELEASE}" -eq 10 ]; then
+		# Disable gpg checks in the boot iso since rpmkeys isn't available
+		yum_args="${yum_args} --nogpgcheck"
+	fi
+
 	# Use dnf in the boot iso since yum isn't available
 	alias yum=dnf
 fi
@@ -245,7 +277,7 @@ rm -rf /rootfs/var/cache/yum
 func (s *rockylinux) getRelease(URL, release, variant, arch string) (string, error) {
 	u := URL + path.Join("/", strings.ToLower(release), "isos", arch)
 
-	resp, err := http.Get(u)
+	resp, err := s.client.Get(u)
 	if err != nil {
 		return "", fmt.Errorf("Failed to GET %q: %w", u, err)
 	}

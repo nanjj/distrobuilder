@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"slices"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type pacman struct {
@@ -97,15 +97,17 @@ func (m *pacman) setupTrustedKeys() error {
 		return fmt.Errorf("Error initializing with pacman-key: %w", err)
 	}
 
-	var keyring string
+	var keyrings []string
 
 	if slices.Contains([]string{"arm", "arm64"}, runtime.GOARCH) {
-		keyring = "archlinuxarm"
+		keyrings = []string{"archlinuxarm"}
+	} else if runtime.GOARCH == "loong64" {
+		keyrings = []string{"archlinux", "archlinux-lcpu"}
 	} else {
-		keyring = "archlinux"
+		keyrings = []string{"archlinux"}
 	}
 
-	err = shared.RunCommand(m.ctx, nil, nil, "pacman-key", "--populate", keyring)
+	err = shared.RunCommand(m.ctx, nil, nil, "pacman-key", append([]string{"--populate"}, keyrings...)...)
 	if err != nil {
 		return fmt.Errorf("Error populating with pacman-key: %w", err)
 	}
@@ -125,6 +127,8 @@ func (m *pacman) setMirrorlist() error {
 
 	if slices.Contains([]string{"arm", "arm64"}, runtime.GOARCH) {
 		mirror = "Server = http://mirror.archlinuxarm.org/$arch/$repo"
+	} else if slices.Contains([]string{"riscv64"}, runtime.GOARCH) {
+		mirror = "Server = https://archriscv.felixc.at/repo/$repo"
 	} else {
 		mirror = "Server = http://mirrors.kernel.org/archlinux/$repo/os/$arch"
 	}

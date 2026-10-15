@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	incus "github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/shared/util"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type commonRHEL struct {
@@ -112,7 +112,7 @@ func (c *commonRHEL) unpackISO(filePath, rootfsDir string, scriptRunner func(str
 
 	if incus.PathExists(packagesDir) && incus.PathExists(repodataDir) {
 		// Create cdrom repo for yum
-		err = os.MkdirAll(filepath.Join(tempRootDir, "mnt", "cdrom"), 0755)
+		err = os.MkdirAll(filepath.Join(tempRootDir, "mnt", "cdrom"), 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create directory %q: %w", filepath.Join(tempRootDir, "mnt", "cdrom"), err)
 		}
@@ -241,7 +241,7 @@ func (c *commonRHEL) unpackRaw(filePath, rootfsDir string, scriptRunner func() e
 	roRootDir := filepath.Join(c.cacheDir, "rootfs.ro")
 	tempRootDir := filepath.Join(c.cacheDir, "rootfs")
 
-	err := os.MkdirAll(roRootDir, 0755)
+	err := os.MkdirAll(roRootDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to create directory %q: %w", roRootDir, err)
 	}

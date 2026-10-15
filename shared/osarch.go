@@ -3,7 +3,7 @@ package shared
 import (
 	"fmt"
 
-	"github.com/lxc/incus/v6/shared/osarch"
+	"github.com/lxc/incus/v7/shared/osarch"
 )
 
 var alpineLinuxArchitectureNames = map[int]string{
@@ -40,6 +40,15 @@ var gentooArchitectureNames = map[int]string{
 	osarch.ARCH_64BIT_POWERPC_BIG_ENDIAN:    "ppc64",
 	osarch.ARCH_64BIT_POWERPC_LITTLE_ENDIAN: "ppc64le",
 	osarch.ARCH_64BIT_S390_BIG_ENDIAN:       "s390x",
+	osarch.ARCH_64BIT_LOONGARCH:             "loong",
+}
+
+var openwrtArchitectureNames = map[int]string{
+	// these are the subtargets suited for virtualization
+	// slashes `/` in architecture names trip up distrobuilder
+	osarch.ARCH_64BIT_INTEL_X86:           "x86-64",
+	osarch.ARCH_32BIT_ARMV7_LITTLE_ENDIAN: "armsr-armv7",
+	osarch.ARCH_64BIT_ARMV8_LITTLE_ENDIAN: "armsr-armv8",
 }
 
 var plamoLinuxArchitectureNames = map[int]string{
@@ -78,6 +87,7 @@ var distroArchitecture = map[string]map[int]string{
 	"centos":      centosArchitectureNames,
 	"debian":      debianArchitectureNames,
 	"gentoo":      gentooArchitectureNames,
+	"openwrt":     openwrtArchitectureNames,
 	"plamolinux":  plamoLinuxArchitectureNames,
 	"voidlinux":   voidLinuxArchitectureNames,
 	"funtoo":      funtooArchitectureNames,
@@ -98,7 +108,7 @@ func GetArch(distro, arch string) (string, error) {
 		return "unknown", fmt.Errorf("Architecture map isn't supported: %s", distro)
 	}
 
-	archID, err := osarch.ArchitectureId(arch)
+	archID, err := osarch.ArchitectureID(arch)
 	if err != nil {
 		return "unknown", err
 	}

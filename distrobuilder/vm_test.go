@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
-func lsblkOutputHelper(t *testing.T, v *vm, args [][]string) (rb func()) {
+func lsblkOutputHelper(t *testing.T, v *vm, args [][]string) func() {
 	t.Helper()
 	// Prepare image file
 	f, err := os.CreateTemp("", "lsblkOutput*.raw")
@@ -23,6 +23,7 @@ func lsblkOutputHelper(t *testing.T, v *vm, args [][]string) (rb func()) {
 
 	v.imageFile = f.Name()
 	v.size = 2e8
+	v.bootSize = 1e8
 	defer func() {
 		if err != nil {
 			os.RemoveAll(v.imageFile)
@@ -52,7 +53,7 @@ func lsblkOutputHelper(t *testing.T, v *vm, args [][]string) (rb func()) {
 		t.Fatal(err)
 	}
 
-	rb = func() {
+	return func() {
 		err := shared.RunCommand(v.ctx, nil, nil, "losetup", "-d", v.loopDevice)
 		if err != nil {
 			t.Fatal(err)
@@ -63,8 +64,6 @@ func lsblkOutputHelper(t *testing.T, v *vm, args [][]string) (rb func()) {
 			t.Fatal(err)
 		}
 	}
-
-	return
 }
 
 func TestLsblkOutput(t *testing.T) {

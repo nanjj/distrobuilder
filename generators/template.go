@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/flosch/pongo2/v4"
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/flosch/pongo2/v6"
+	"github.com/lxc/incus/v7/shared/api"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type template struct {
@@ -27,7 +27,7 @@ func (g *template) RunLXC(img *image.LXCImage, target shared.DefinitionTargetLXC
 func (g *template) RunIncus(img *image.IncusImage, target shared.DefinitionTargetIncus) error {
 	templateDir := filepath.Join(g.cacheDir, "templates")
 
-	err := os.MkdirAll(templateDir, 0755)
+	err := os.MkdirAll(templateDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to create directory %q: %w", templateDir, err)
 	}

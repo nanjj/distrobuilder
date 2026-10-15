@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lxc/incus/v6/shared/api"
-	incus "github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/api"
+	incus "github.com/lxc/incus/v7/shared/util"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type hostname struct {
@@ -55,7 +55,7 @@ func (g *hostname) RunIncus(img *image.IncusImage, target shared.DefinitionTarge
 
 	templateDir := filepath.Join(g.cacheDir, "templates")
 
-	err := os.MkdirAll(templateDir, 0755)
+	err := os.MkdirAll(templateDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to create directory %q: %w", templateDir, err)
 	}

@@ -245,9 +245,11 @@ func TestRecvGPGKeys(t *testing.T) {
 		want bool
 	}{
 		{[]string{testdataKey1, testdataKey2, testdataKey3, testdataKey4, testdataKey5}, true},
-		{[]string{testdataKey1, testdataKey2, testdataKey3, testdataKey4, testdataKey5,
+		{[]string{
+			testdataKey1, testdataKey2, testdataKey3, testdataKey4, testdataKey5,
 			`-----BEGIN PGP PUBLIC KEY BLOCK-----
-invalid public key`}, false},
+invalid public key`,
+		}, false},
 	}
 
 	for _, tc := range tcs {
@@ -257,6 +259,9 @@ invalid public key`}, false},
 				t.Fatal(err)
 			}
 
+			defer func() {
+				os.RemoveAll(gpgDir)
+			}()
 			want, err := recvGPGKeys(context.Background(), gpgDir, "", tc.keys)
 			if want != tc.want {
 				t.Fatal(want, tc.want, err)

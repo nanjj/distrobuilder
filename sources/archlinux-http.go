@@ -13,7 +13,7 @@ import (
 
 	"github.com/antchfx/htmlquery"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type archlinux struct {
@@ -39,12 +39,19 @@ func (s *archlinux) Run() error {
 	var fname string
 	var tarball string
 
-	if s.definition.Image.ArchitectureMapped == "x86_64" {
+	switch s.definition.Image.ArchitectureMapped {
+	case "x86_64":
 		fname = fmt.Sprintf("archlinux-bootstrap-%s-%s.tar.zst",
 			release, s.definition.Image.ArchitectureMapped)
 		tarball = fmt.Sprintf("%s/%s/%s", s.definition.Source.URL,
 			release, fname)
-	} else {
+	case "loong64":
+		fname = "archlinux-bootstrap-loong64.tar.zst"
+		tarball = fmt.Sprintf("%s/iso/latest/%s", s.definition.Source.URL, fname)
+	case "riscv64":
+		fname = "archriscv-latest.tar.zst"
+		tarball = fmt.Sprintf("%s/images/%s", s.definition.Source.URL, fname)
+	default:
 		fname = fmt.Sprintf("ArchLinuxARM-%s-latest.tar.gz",
 			s.definition.Image.ArchitectureMapped)
 		tarball = fmt.Sprintf("%s/os/%s", s.definition.Source.URL, fname)
@@ -55,18 +62,19 @@ func (s *archlinux) Run() error {
 		return fmt.Errorf("Failed to parse URL %q: %w", tarball, err)
 	}
 
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" &&
-		len(s.definition.Source.Keys) == 0 {
-		return errors.New("GPG keys are required if downloading from HTTP")
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
 	}
+
+	s.definition.Source.SkipVerification = skip
 
 	fpath, err := s.DownloadHash(s.definition.Image, tarball, "", nil)
 	if err != nil {
 		return fmt.Errorf("Failed to download %q: %w", tarball, err)
 	}
 
-	// Force gpg checks when using http
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" {
+	if !s.definition.Source.SkipVerification {
 		_, err = s.DownloadHash(s.definition.Image, tarball+".sig", "", nil)
 		if err != nil {
 			return fmt.Errorf("Failed downloading %q: %w", tarball+".sig", err)

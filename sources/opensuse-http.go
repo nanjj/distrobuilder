@@ -16,7 +16,7 @@ import (
 
 	"github.com/antchfx/htmlquery"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type opensuse struct {
@@ -41,7 +41,7 @@ func (s *opensuse) Run() error {
 	var resp *http.Response
 
 	err = shared.Retry(func() error {
-		resp, err = http.Head(tarballPath)
+		resp, err = s.client.Head(tarballPath)
 		if err != nil {
 			return fmt.Errorf("Failed to HEAD %q: %w", tarballPath, err)
 		}
@@ -226,7 +226,7 @@ func (s *opensuse) getTarballName(u *url.URL, release, arch string) (string, err
 func (s *opensuse) validateURL(u url.URL, tarball string) bool {
 	u.Path = path.Join(u.Path, tarball)
 
-	resp, err := http.Head(u.String())
+	resp, err := s.client.Head(u.String())
 	if err != nil {
 		return false
 	}

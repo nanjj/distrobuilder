@@ -2,7 +2,7 @@
 # NOTE: systemctl is not available for systemd-generators
 set -eu
 
-# disable localisation (faster grep)
+# disable localization (faster grep)
 export LC_ALL=C
 
 ## Helper functions
@@ -106,7 +106,7 @@ fix_systemd_override_unit() {
 			echo "PrivateTmp=no";
 			[ "${SYSTEMD}" -ge 244 ] && echo "ProtectKernelLogs=no";
 			[ "${SYSTEMD}" -ge 232 ] && echo "ProtectKernelModules=no";
-			[ "${SYSTEMD}" -ge 231 ] && echo "ReadWritePaths=";
+			[ "${SYSTEMD}" -ge 231 ] && echo "ReadWritePaths=" && echo "ReadOnlyPaths=";
 			[ "${SYSTEMD}" -ge 254 ] && [ "${SYSTEMD}" -lt 256 ] && echo "ImportCredential=";
 		fi
 
@@ -157,6 +157,33 @@ fix_systemd_sysctl() {
 		EOF
 }
 
+fix_dbus_apparmor() {
+	dropin="/etc/dbus-1/system.d/zzz-lxc-disable-apparmor.conf"
+
+	# Reset state on boot
+	rm -f "${dropin}" 2>/dev/null || true
+
+	# Skip if D-Bus isn't installed.
+	[ -d /etc/dbus-1/system.d ] || return 0
+
+	# Check if we have apparmor at all.
+	aa_access="/sys/kernel/security/apparmor/.access"
+	[ -e "${aa_access}" ] || return 0
+
+	# Check if we have write access to the apparmor namespace.
+	if (: >> "${aa_access}") 2>/dev/null; then
+		return 0
+	fi
+
+	cat <<-EOF > "${dropin}" 2>/dev/null || true
+		<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
+		 "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+		<busconfig>
+		  <apparmor mode="disabled"/>
+		</busconfig>
+		EOF
+}
+
 ## Main logic
 # Exit immediately if not an Incus/LXC container
 is_lxc_container || exit 0
@@ -193,16 +220,23 @@ fix_systemd_sysctl
 # Fix issues with /run not being writable.
 fix_ro_run systemd-nsresourced.service
 
+# Disable D-Bus AppArmor mediation when the policy can't be queried.
+fix_dbus_apparmor
+
 # Mask some units.
+fix_systemd_mask auditd.service
+fix_systemd_mask colord.service
 fix_systemd_mask dev-hugepages.mount
+fix_systemd_mask mdmonitor.service
 fix_systemd_mask run-ribchester-general.mount
+fix_systemd_mask systemd-binfmt.service
+fix_systemd_mask systemd-firstboot.service
 fix_systemd_mask systemd-hwdb-update.service
 fix_systemd_mask systemd-journald-audit.socket
 fix_systemd_mask systemd-modules-load.service
 fix_systemd_mask systemd-pstore.service
 fix_systemd_mask ua-messaging.service
-fix_systemd_mask systemd-firstboot.service
-fix_systemd_mask systemd-binfmt.service
+fix_systemd_mask xfs_healer@-.service
 if [ ! -e /dev/tty1 ]; then
 	fix_systemd_mask vconsole-setup-kludge@tty1.service
 fi
@@ -240,3 +274,15 @@ for d in /etc/systemd/system /usr/lib/systemd/system /lib/systemd/system; do
 		fi
 	done
 done
+
+# Fix issue with console-getty on recent systemd.
+if [ "${SYSTEMD}" -ge 258 ]; then
+	mkdir -p "/run/systemd/system/console-getty.service.d/"
+	cat <<-EOF > /run/systemd/system/console-getty.service.d/override.conf
+		[Service]
+		ExecStart=
+		ExecStart=-/sbin/agetty -o '-- \\\\u' --noreset --noclear --keep-baud 115200,57600,38400,9600 console
+		StandardInput=null
+		StandardOutput=null
+		EOF
+fi

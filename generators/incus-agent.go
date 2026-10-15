@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	incus "github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/shared/util"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 var incusAgentSetupScript = `#!/bin/sh
@@ -113,6 +113,12 @@ func (g *incusAgent) RunIncus(img *image.IncusImage, target shared.DefinitionTar
 		return nil
 	}
 
+	// openwrt is the only distro using procd
+	_, err = os.Stat(filepath.Join(g.sourceDir, "etc", "openwrt_version"))
+	if err == nil {
+		return g.handleProcd()
+	}
+
 	return g.getInitSystemFromInittab()
 }
 
@@ -146,14 +152,14 @@ StartLimitBurst=10
 
 	path := filepath.Join(g.sourceDir, systemdPath, "system", "incus-agent.service")
 
-	err := os.WriteFile(path, []byte(incusAgentServiceUnit), 0644)
+	err := os.WriteFile(path, []byte(incusAgentServiceUnit), 0o644)
 	if err != nil {
 		return fmt.Errorf("Failed to write file %q: %w", path, err)
 	}
 
 	path = filepath.Join(g.sourceDir, systemdPath, "incus-agent-setup")
 
-	err = os.WriteFile(path, []byte(incusAgentSetupScript), 0755)
+	err = os.WriteFile(path, []byte(incusAgentSetupScript), 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to write file %q: %w", path, err)
 	}
@@ -166,7 +172,7 @@ StartLimitBurst=10
 
 	incusAgentRules := `SYMLINK=="virtio-ports/org.linuxcontainers.incus", TAG+="systemd", ENV{SYSTEMD_WANTS}+="incus-agent.service"
 `
-	err = os.WriteFile(filepath.Join(g.sourceDir, udevPath, "99-incus-agent.rules"), []byte(incusAgentRules), 0400)
+	err = os.WriteFile(filepath.Join(g.sourceDir, udevPath, "99-incus-agent.rules"), []byte(incusAgentRules), 0o400)
 	if err != nil {
 		return fmt.Errorf("Failed to write file %q: %w", filepath.Join(g.sourceDir, udevPath, "99-incus-agent.rules"), err)
 	}
@@ -192,7 +198,7 @@ depend() {
 }
 `
 
-	err := os.WriteFile(filepath.Join(g.sourceDir, "/etc/init.d/incus-agent"), []byte(incusAgentScript), 0755)
+	err := os.WriteFile(filepath.Join(g.sourceDir, "/etc/init.d/incus-agent"), []byte(incusAgentScript), 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to write file %q: %w", filepath.Join(g.sourceDir, "/etc/init.d/incus-agent"), err)
 	}
@@ -209,7 +215,7 @@ command=/usr/local/bin/incus-agent-setup
 required_dirs=/dev/virtio-ports/
 `
 
-	err = os.WriteFile(filepath.Join(g.sourceDir, "/etc/init.d/incus-agent-setup"), []byte(incusConfigShareMountScript), 0755)
+	err = os.WriteFile(filepath.Join(g.sourceDir, "/etc/init.d/incus-agent-setup"), []byte(incusConfigShareMountScript), 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to write file %q: %w", filepath.Join(g.sourceDir, "/etc/init.d/incus-agent-setup"), err)
 	}
@@ -221,9 +227,95 @@ required_dirs=/dev/virtio-ports/
 
 	path := filepath.Join(g.sourceDir, "/usr/local/bin", "incus-agent-setup")
 
-	err = os.WriteFile(path, []byte(incusAgentSetupScript), 0755)
+	err = os.WriteFile(path, []byte(incusAgentSetupScript), 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to write file %q: %w", path, err)
+	}
+
+	return nil
+}
+
+func (g *incusAgent) handleProcd() error {
+	incusAgentProcdScript := `#!/etc/rc.common
+START=05
+STOP=85
+USE_PROCD=1
+
+start_service() {
+	# set up the /run/incus_agent directory
+	if [ ! -x /usr/local/sbin/incus-agent-setup ]; then
+		echo "incus-agent-setup script not found"
+		return 1
+	fi
+
+	/usr/local/sbin/incus-agent-setup || return $?
+
+	procd_open_instance
+	# procd can't change directory, so we need a wrapper script
+	procd_set_param command /usr/local/sbin/incus-agent-wrapper
+	# wait 5 seconds before restarting;
+	# if it fails more than 10 times in 5 minutes, consider it crashed
+	procd_set_param respawn 300 5 10
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+}
+
+service_stopped() {
+	umount -l /run/incus_agent
+	rmdir /run/incus_agent
+}
+`
+
+	incusAgentWrapperScript := `#!/bin/sh
+if [ ! -d /run/incus_agent ]; then
+	echo "incus-agent runtime directory /run/incus_agent not present!"
+	exit 1
+fi
+
+cd /run/incus_agent
+
+exec /run/incus_agent/incus-agent $@
+`
+
+	initPath := filepath.Join(g.sourceDir, "/etc/init.d/incus-agent")
+
+	err := os.WriteFile(initPath, []byte(incusAgentProcdScript), 0o755)
+	if err != nil {
+		return fmt.Errorf("Failed to write file %q: %w", initPath, err)
+	}
+
+	initPathStart := filepath.Join(g.sourceDir, "/etc/rc.d/S05incus-agent")
+	err = os.Symlink("/etc/init.d/incus-agent", initPathStart)
+	if err != nil {
+		return fmt.Errorf("Failed to create symlink %q: %w", initPathStart, err)
+	}
+
+	initPathKill := filepath.Join(g.sourceDir, "/etc/rc.d/K85incus-agent")
+	err = os.Symlink("/etc/init.d/incus-agent", initPathKill)
+	if err != nil {
+		return fmt.Errorf("Failed to create symlink %q: %w", initPathKill, err)
+	}
+
+	// not present by default on openwrt
+	sbinPath := filepath.Join(g.sourceDir, "/usr/local/sbin")
+
+	err = os.MkdirAll(sbinPath, 0o755)
+	if err != nil {
+		return fmt.Errorf("Failed to create directory %q: %w", sbinPath, err)
+	}
+
+	wrapperPath := filepath.Join(g.sourceDir, "/usr/local/sbin", "incus-agent-wrapper")
+
+	err = os.WriteFile(wrapperPath, []byte(incusAgentWrapperScript), 0o755)
+	if err != nil {
+		return fmt.Errorf("Failed to write file %q: %w", wrapperPath, err)
+	}
+
+	setupPath := filepath.Join(g.sourceDir, "/usr/local/sbin", "incus-agent-setup")
+
+	err = os.WriteFile(setupPath, []byte(incusAgentSetupScript), 0o755)
+	if err != nil {
+		return fmt.Errorf("Failed to write file %q: %w", setupPath, err)
 	}
 
 	return nil

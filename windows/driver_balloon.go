@@ -24,8 +24,8 @@ var driverBalloon = DriverInfo{
 [\ControlSet001\Services\EventLog\System\BALLOON]
 "EventMessageFile"=hex(2):25,00,53,00,79,00,73,00,74,00,65,00,6d,00,52,00,6f,00,6f,00,74,00,25,00,5c,00,53,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,49,00,6f,00,4c,00,6f,00,67,00,4d,00,73,00,67,00,2e,00,64,00,6c,00,6c,00,3b,00,25,00,53,00,79,00,73,00,74,00,65,00,6d,00,52,00,6f,00,6f,00,74,00,25,00,5c,00,53,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,64,00,72,00,69,00,76,00,65,00,72,00,73,00,5c,00,62,00,61,00,6c,00,6c,00,6f,00,6f,00,6e,00,2e,00,73,00,79,00,73,00,00,00
 "TypesSupported"=dword:00000007
-
-
+`,
+	SystemRegistryDrivers: `
 [\DriverDatabase\DeviceIds\PCI\VEN_1AF4&DEV_1002]
 "{{ infFile }}"=hex(3):02,ff,00,00
 
@@ -50,14 +50,13 @@ var driverBalloon = DriverInfo{
 [\DriverDatabase\DriverPackages\{{ packageName }}]
 @=hex(1):{{ infFile|toHex }},00,00
 "Catalog"=hex(1):42,00,61,00,6c,00,6c,00,6f,00,6f,00,6e,00,2e,00,63,00,61,00,74,00,00,00
-"ImportDate"=hex(3):b0,78,d7,bd,ac,e9,d6,01
 "InfName"=hex(1):62,00,61,00,6c,00,6c,00,6f,00,6f,00,6e,00,2e,00,69,00,6e,00,66,00,00,00
-"OemPath"=hex(1):45,00,3a,00,5c,00,42,00,61,00,6c,00,6c,00,6f,00,6f,00,6e,00,5c,00,77,00,31,00,30,00,5c,00,61,00,6d,00,64,00,36,00,34,00,00,00
-"Provider"=hex(1):52,00,65,00,64,00,20,00,48,00,61,00,74,00,2c,00,20,00,49,00,6e,00,63,00,2e,00,00,00
-"SignerName"=hex(1):00,00
+"OemPath"=hex(1):{{ "C:\\Program Files\\Virtio-Win\\"|add:driverName | toHex }},00,00
+"Provider"=hex(1):{{"Red Hat, Inc."|toHex}},00,00
+"SignerName"=hex(1):{{"Microsoft Windows Hardware Compatibility Publisher"|toHex}},00,00
 "SignerScore"=dword:0d000004
 "StatusFlags"=dword:00000012
-"Version"=hex(3):00,ff,09,00,00,00,00,00,7d,e9,36,4d,25,e3,ce,11,bf,c1,08,00,2b,e1,03,18,00,00,8e,c3,86,b8,d6,01,38,4a,68,00,53,00,64,00,00,00,00,00,00,00,00,00
+"Version"=hex(3):{{driverVersion}}
 
 [\DriverDatabase\DriverPackages\{{ packageName }}\Configurations]
 

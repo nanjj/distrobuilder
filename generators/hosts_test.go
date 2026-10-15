@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 func TestHostsGeneratorRunLXC(t *testing.T) {
@@ -34,7 +34,7 @@ func TestHostsGeneratorRunLXC(t *testing.T) {
 
 	image := image.NewLXCImage(context.TODO(), cacheDir, "", cacheDir, definition)
 
-	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs", "etc"), 0755)
+	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs", "etc"), 0o755)
 	require.NoError(t, err)
 
 	createTestFile(t, filepath.Join(cacheDir, "rootfs", "etc", "hosts"),
@@ -69,7 +69,7 @@ func TestHostsGeneratorRunIncus(t *testing.T) {
 
 	image := image.NewIncusImage(context.TODO(), cacheDir, "", cacheDir, definition)
 
-	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs", "etc"), 0755)
+	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs", "etc"), 0o755)
 	require.NoError(t, err)
 
 	createTestFile(t, filepath.Join(cacheDir, "rootfs", "etc", "hosts"),

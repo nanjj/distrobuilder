@@ -2,7 +2,6 @@ package sources
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type almalinux struct {
@@ -58,39 +57,40 @@ func (s *almalinux) Run() error {
 		return fmt.Errorf("Failed to parse URL %q: %w", baseURL, err)
 	}
 
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
+	}
+
+	s.definition.Source.SkipVerification = skip
+
 	checksumFile := ""
 	if !s.definition.Source.SkipVerification {
-		// Force gpg checks when using http
-		if url.Scheme != "https" {
-			if len(s.definition.Source.Keys) == 0 {
-				return errors.New("GPG keys are required if downloading from HTTP")
+		if s.definition.Image.ArchitectureMapped == "armhfp" {
+			checksumFile = "sha256sum.txt"
+		} else {
+			switch s.majorVersion {
+			case "8", "9", "10":
+				checksumFile = "CHECKSUM"
+			default:
+				checksumFile = "sha256sum.txt.asc"
 			}
+		}
 
-			if s.definition.Image.ArchitectureMapped == "armhfp" {
-				checksumFile = "sha256sum.txt"
-			} else {
-				if strings.HasPrefix(s.definition.Image.Release, "8") {
-					checksumFile = "CHECKSUM"
-				} else {
-					checksumFile = "sha256sum.txt.asc"
-				}
-			}
+		fpath, err := s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
+		if err != nil {
+			return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile, err)
+		}
 
-			fpath, err := s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
+		// Only verify file if possible.
+		if strings.HasSuffix(checksumFile, ".asc") || checksumFile == "CHECKSUM" {
+			valid, err := s.VerifyFile(filepath.Join(fpath, checksumFile), "")
 			if err != nil {
-				return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile, err)
+				return fmt.Errorf("Failed to verify %q: %w", checksumFile, err)
 			}
 
-			// Only verify file if possible.
-			if strings.HasSuffix(checksumFile, ".asc") {
-				valid, err := s.VerifyFile(filepath.Join(fpath, checksumFile), "")
-				if err != nil {
-					return fmt.Errorf("Failed to verify %q: %w", checksumFile, err)
-				}
-
-				if !valid {
-					return fmt.Errorf("Invalid signature for %q", filepath.Join(fpath, checksumFile))
-				}
+			if !valid {
+				return fmt.Errorf("Invalid signature for %q", filepath.Join(fpath, checksumFile))
 			}
 		}
 	}
@@ -135,6 +135,7 @@ func (s *almalinux) isoRunner(gpgKeysPath string) error {
 set -eux
 
 GPG_KEYS="%s"
+RELEASE="%s"
 
 # Create required files
 touch /etc/mtab /etc/fstab
@@ -179,6 +180,11 @@ else
 	gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux
 	EOF
 
+	if [ "${RELEASE}" -eq 10 ]; then
+		# Disable gpg checks in the boot iso since rpmkeys isn't available
+		yum_args="${yum_args} --nogpgcheck"
+	fi
+
 	# Use dnf in the boot iso since yum isn't available
 	alias yum=dnf
 fi
@@ -187,7 +193,7 @@ pkgs="basesystem almalinux-release yum"
 
 # Create a minimal rootfs
 mkdir /rootfs
-yum ${yum_args} --installroot=/rootfs -y --releasever=%s --skip-broken install ${pkgs}
+yum ${yum_args} --installroot=/rootfs -y --releasever="${RELEASE}" --skip-broken install ${pkgs}
 rm -rf /rootfs/var/cache/yum
 `, gpgKeysPath, s.majorVersion))
 	if err != nil {
@@ -206,7 +212,7 @@ func (s *almalinux) getRelease(URL, release, variant, arch string) (string, erro
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(fullURL)
+		resp, err = s.client.Get(fullURL)
 		if err != nil {
 			return fmt.Errorf("Failed to GET %q: %w", fullURL, err)
 		}

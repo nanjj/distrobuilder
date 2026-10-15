@@ -13,7 +13,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 var incusDef = shared.Definition{
@@ -38,10 +38,10 @@ func setupIncus(t *testing.T) (*IncusImage, string) {
 	cacheDir, err := os.MkdirTemp(os.TempDir(), "distrobuilder-test-")
 	require.NoError(t, err)
 
-	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs"), 0755)
+	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs"), 0o755)
 	require.NoError(t, err)
 
-	err = os.MkdirAll(filepath.Join(cacheDir, "templates"), 0755)
+	err = os.MkdirAll(filepath.Join(cacheDir, "templates"), 0o755)
 	require.NoError(t, err)
 
 	image := NewIncusImage(context.TODO(), cacheDir, "", cacheDir, incusDef)

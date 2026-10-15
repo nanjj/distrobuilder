@@ -23,10 +23,12 @@ func TestParseWimInfo(t *testing.T) {
 			8:  "Windows 10 Pro Education",
 			9:  "Windows 10 Pro Education N",
 			10: "Windows 10 Pro for Workstations",
-			11: "Windows 10 Pro N for Workstations"}},
+			11: "Windows 10 Pro N for Workstations",
+		}},
 		{"testdata/w10_boot_wim_info.txt", 2, map[int]string{
 			1: "Microsoft Windows PE (x64)",
-			2: "Microsoft Windows Setup (x64)"}},
+			2: "Microsoft Windows Setup (x64)",
+		}},
 		{"testdata/winpe_boot_wim_info.txt", 1, map[int]string{
 			1: "Microsoft Windows PE (amd64)",
 		}},
@@ -66,7 +68,7 @@ func TestDetectWindowsVersion(t *testing.T) {
 		{"testdata/w10_install_wim_info.txt", "w10", "amd64"},
 		{"testdata/2k19_install_wim_info.txt", "2k19", "amd64"},
 		{"testdata/w8_install_wim_info.txt", "w8", "amd64"},
-		{"testdata/2k12r2_install_wim_info.txt", "2k12r2", "amd64"},
+		{"testdata/2k12r2_install_wim_info.txt", "2k12R2", "amd64"},
 		{"testdata/w7_install_wim_info.txt", "w7", "x86"},
 	}
 

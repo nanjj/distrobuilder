@@ -9,12 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 
-	"github.com/lxc/incus/v6/shared/subprocess"
+	"github.com/lxc/incus/v7/shared/subprocess"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type fedora struct {
@@ -25,10 +24,6 @@ type fedora struct {
 func (s *fedora) Run() error {
 	base := "Fedora-Container-Base-Generic"
 	extension := "oci.tar.xz"
-	if slices.Contains([]string{"39", "40"}, s.definition.Image.Release) {
-		base = "Fedora-Container-Base"
-		extension = "tar.xz"
-	}
 
 	baseURL := fmt.Sprintf("%s/packages/%s", s.definition.Source.URL, base)
 
@@ -57,7 +52,7 @@ func (s *fedora) Run() error {
 			return fmt.Errorf("Failed to create OCI path: %q: %w", ociDir, err)
 		}
 
-		err = os.Mkdir(filepath.Join(ociDir, "image"), 0755)
+		err = os.Mkdir(filepath.Join(ociDir, "image"), 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create OCI path: %q: %w", ociDir, err)
 		}
@@ -68,7 +63,7 @@ func (s *fedora) Run() error {
 		}
 
 		// Extract the image to a temporary path.
-		err = os.Mkdir(filepath.Join(ociDir, "content"), 0755)
+		err = os.Mkdir(filepath.Join(ociDir, "content"), 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create OCI path: %q: %w", ociDir, err)
 		}
@@ -79,7 +74,7 @@ func (s *fedora) Run() error {
 		}
 
 		// Transfer the content.
-		_, err = subprocess.RunCommand("rsync", "-avP", fmt.Sprintf("%s/rootfs/", filepath.Join(ociDir, "content")), s.rootfsDir)
+		err = shared.RsyncLocal(s.ctx, fmt.Sprintf("%s/rootfs/", filepath.Join(ociDir, "content")), s.rootfsDir)
 		if err != nil {
 			return fmt.Errorf("Failed to run rsync: %w", err)
 		}
@@ -186,7 +181,7 @@ func (s *fedora) getLatestBuild(URL, release string) (string, error) {
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(fmt.Sprintf("%s/%s", URL, release))
+		resp, err = s.client.Get(fmt.Sprintf("%s/%s", URL, release))
 		if err != nil {
 			return fmt.Errorf("Failed to GET %q: %w", fmt.Sprintf("%s/%s", URL, release), err)
 		}

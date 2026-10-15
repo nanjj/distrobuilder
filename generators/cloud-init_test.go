@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	incus "github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/shared/util"
 	"github.com/stretchr/testify/require"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 func TestCloudInitGeneratorRunLXC(t *testing.T) {
@@ -29,10 +29,10 @@ func TestCloudInitGeneratorRunLXC(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare rootfs
-	err = os.MkdirAll(filepath.Join(rootfsDir, "etc", "runlevels"), 0755)
+	err = os.MkdirAll(filepath.Join(rootfsDir, "etc", "runlevels"), 0o755)
 	require.NoError(t, err)
 
-	err = os.MkdirAll(filepath.Join(rootfsDir, "etc", "cloud"), 0755)
+	err = os.MkdirAll(filepath.Join(rootfsDir, "etc", "cloud"), 0o755)
 	require.NoError(t, err)
 
 	for _, f := range []string{"cloud-init-local", "cloud-config", "cloud-init", "cloud-final"} {

@@ -3,6 +3,7 @@ ARCHIVE=distrobuilder-$(VERSION).tar
 GO111MODULE=on
 SPHINXENV=.sphinx/venv/bin/activate
 GOPATH=$(shell go env GOPATH)
+export GOFLAGS=-tags=containers_image_storage_stub,containers_image_docker_daemon_stub,containers_image_openpgp
 
 .PHONY: default
 default:
@@ -13,13 +14,14 @@ default:
 .PHONY: update-gomod
 update-gomod:
 	go get -t -v -u ./...
-	go mod tidy -go=1.23.0
+	go get github.com/sigstore/fulcio@v1.8.5
+	go mod tidy --go=1.25.12
 	go get toolchain@none
 	@echo "Dependencies updated"
 
 .PHONY: check
 check: default
-	sudo GOENV=$(shell go env GOENV) go test -v ./...
+	sudo GOENV=$(shell go env GOENV) GOFLAGS=$(GOFLAGS) go test -v ./...
 
 .PHONY: dist
 dist:
@@ -77,7 +79,7 @@ doc-lint:
 .PHONY: static-analysis
 static-analysis:
 ifeq ($(shell command -v golangci-lint),)
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(GOPATH)/bin
 endif
 ifeq ($(shell command -v codespell),)
 	echo "Please install codespell"

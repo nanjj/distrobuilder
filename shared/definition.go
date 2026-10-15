@@ -9,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/osarch"
-	incusArch "github.com/lxc/incus/v6/shared/osarch"
+	incusArch "github.com/lxc/incus/v7/shared/osarch"
 )
 
 // ImageTarget represents the image target.
@@ -188,6 +187,7 @@ type DefinitionTargetLXC struct {
 // DefinitionTargetIncusVM represents Incus VM specific options.
 type DefinitionTargetIncusVM struct {
 	Size       uint64 `yaml:"size,omitempty"`
+	BootSize   uint64 `yaml:"boot_size,omitempty"`
 	Filesystem string `yaml:"filesystem,omitempty"`
 }
 
@@ -313,7 +313,7 @@ func (d *Definition) SetValue(key string, value string) error {
 func (d *Definition) SetDefaults() {
 	// default to local arch
 	if d.Image.Architecture == "" {
-		localArch, _ := osarch.ArchitectureGetLocal()
+		localArch, _ := incusArch.ArchitectureGetLocal()
 		d.Image.Architecture = localArch
 	}
 
@@ -363,6 +363,7 @@ func (d *Definition) Validate() error {
 		"alt-http",
 		"apertis-http",
 		"archlinux-http",
+		"archbootstrap",
 		"busybox",
 		"centos-http",
 		"springdalelinux-http",
@@ -467,6 +468,7 @@ func (d *Definition) Validate() error {
 		"centos",
 		"debian",
 		"gentoo",
+		"openwrt",
 		"plamolinux",
 		"voidlinux",
 		"funtoo",
@@ -513,7 +515,7 @@ func (d *Definition) Validate() error {
 	d.Image.ArchitectureMapped = archMapped
 
 	// Kernel architecture and personality
-	archID, err := incusArch.ArchitectureId(d.Image.Architecture)
+	archID, err := incusArch.ArchitectureID(d.Image.Architecture)
 	if err != nil {
 		return fmt.Errorf("Failed to get architecture ID: %w", err)
 	}

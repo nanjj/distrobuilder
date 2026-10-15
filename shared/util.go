@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flosch/pongo2/v4"
+	"github.com/flosch/pongo2/v6"
 	"golang.org/x/sys/unix"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -23,6 +24,7 @@ const (
 	ContextKeyEnviron = ContextKey("environ")
 	ContextKeyStderr  = ContextKey("stderr")
 	EnvRootUUID       = "DISTROBUILDER_ROOT_UUID"
+	EnvRootPARTUUID   = "DISTROBUILDER_ROOT_PARTUUID"
 )
 
 // EnvVariable represents a environment variable.
@@ -60,18 +62,19 @@ func CaseInsensitive(s string) (pattern string) {
 			pattern += "\\" + a
 		}
 	}
-	return
+
+	return pattern
 }
 
 // FindFirstMatch find the first matched file case insensitive.
 func FindFirstMatch(dir string, elem ...string) (found string, err error) {
 	matches, err := FindAllMatches(dir, elem...)
 	if err != nil {
-		return
+		return found, err
 	}
 
 	found = matches[0]
-	return
+	return found, err
 }
 
 // FindAllMatches find all the matched files case insensitive.
@@ -84,15 +87,37 @@ func FindAllMatches(dir string, elem ...string) (matches []string, err error) {
 	pattern := filepath.Join(names...)
 	matches, err = filepath.Glob(pattern)
 	if err != nil {
-		return
+		return matches, err
 	}
 
 	if len(matches) == 0 {
 		err = fmt.Errorf("No match found %s", pattern)
-		return
+		return matches, err
 	}
 
-	return
+	return matches, err
+}
+
+// CopyDir copies the contents of src to dst.
+func CopyDir(src string, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		r, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		dstRel := filepath.Join(dst, r)
+
+		if d.IsDir() {
+			return os.MkdirAll(dstRel, 0o755)
+		}
+
+		return Copy(path, dstRel)
+	})
 }
 
 // Copy copies a file.
@@ -152,10 +177,21 @@ func RunCommand(ctx context.Context, stdin io.Reader, stdout io.Writer, name str
 // RunScript runs a script hereby setting the SHELL and PATH env variables,
 // and redirecting the process's stdout and stderr to the real stdout and stderr
 // respectively.
+//
+// The script is executed from a memfd when possible and from a temporary file
+// otherwise.
 func RunScript(ctx context.Context, content string) error {
-	fd, err := unix.MemfdCreate("tmp", 0)
+	return runScript(ctx, content, unix.MemfdCreate)
+}
+
+type memfdCreateFunc func(name string, flags int) (int, error)
+
+func runScript(ctx context.Context, content string, memfdCreate memfdCreateFunc) error {
+	fd, err := createExecutableMemfd(memfdCreate)
 	if err != nil {
-		return fmt.Errorf("Failed to create memfd: %w", err)
+		// With vm.memfd_noexec=2, or when memfd_create is blocked (seccomp),
+		// there's no memfd we can execute.
+		return runScriptFromFile(ctx, content)
 	}
 
 	defer unix.Close(fd)
@@ -168,6 +204,47 @@ func RunScript(ctx context.Context, content string) error {
 	fdPath := fmt.Sprintf("/proc/self/fd/%d", fd)
 
 	return RunCommand(ctx, nil, nil, fdPath)
+}
+
+// createExecutableMemfd creates a memfd which can be executed.
+func createExecutableMemfd(memfdCreate memfdCreateFunc) (int, error) {
+	// A memfd isn't executable by default with vm.memfd_noexec=1.
+	fd, err := memfdCreate("tmp", unix.MFD_EXEC)
+	if errors.Is(err, unix.EINVAL) {
+		// Kernels older than 6.3 don't know MFD_EXEC.
+		return memfdCreate("tmp", 0)
+	}
+
+	return fd, err
+}
+
+// runScriptFromFile runs a script from a temporary file which is removed afterwards.
+func runScriptFromFile(ctx context.Context, content string) error {
+	file, err := os.CreateTemp("", ".distrobuilder-script-*")
+	if err != nil {
+		return fmt.Errorf("Failed to create temporary script file: %w", err)
+	}
+
+	defer os.Remove(file.Name())
+	defer file.Close()
+
+	err = file.Chmod(0o700)
+	if err != nil {
+		return fmt.Errorf("Failed to make temporary script file executable: %w", err)
+	}
+
+	_, err = file.WriteString(content)
+	if err != nil {
+		return fmt.Errorf("Failed to write to temporary script file: %w", err)
+	}
+
+	// A file which is still open for writing can't be executed (ETXTBSY).
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("Failed to close temporary script file: %w", err)
+	}
+
+	return RunCommand(ctx, nil, nil, file.Name())
 }
 
 // Pack creates an uncompressed tarball.
@@ -364,7 +441,7 @@ func Retry(f func() error, attempts uint) error {
 	for i := uint(0); i < attempts; i++ {
 		err = f()
 		// Stop retrying if the call succeeded or if the context has been cancelled.
-		if err == nil || err != nil && errors.Is(err, context.Canceled) {
+		if err == nil || errors.Is(err, context.Canceled) {
 			break
 		}
 

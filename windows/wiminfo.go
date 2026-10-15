@@ -12,9 +12,16 @@ import (
 var (
 	SupportedWindowsVersions = []string{
 		"w11", "w10", "w8", "w7", "2k19", "2k12", "2k16",
-		"2k22", "2k3", "2k8", "xp", "2k12r2", "2k8r2", "w8.1"}
+		"2k22", "2k25", "2k3", "2k8", "xp", "2k12R2", "2k8R2", "w8.1",
+	}
+
+	LegacyWindowsVersions = []string{
+		"2k8", "2k8R2", "2k3", "xp",
+	}
+
 	SupportedWindowsArchitectures = []string{
-		"amd64", "ARM64", "x86"}
+		"amd64", "ARM64", "x86",
+	}
 )
 
 type WimInfo map[int]map[string]string
@@ -49,10 +56,10 @@ func (as Aliases) MatchString(desc string) string {
 	return ""
 }
 
-func ParseWimInfo(r io.Reader) (info WimInfo, err error) {
+func ParseWimInfo(r io.Reader) (WimInfo, error) {
 	scanner := bufio.NewScanner(r)
-	nextSection := func() (sect map[string]string) {
-		sect = map[string]string{}
+	nextSection := func() map[string]string {
+		sect := map[string]string{}
 		for scanner.Scan() {
 			line := scanner.Text()
 			if line == "" {
@@ -73,47 +80,47 @@ func ParseWimInfo(r io.Reader) (info WimInfo, err error) {
 			sect[key] = val
 		}
 
-		return
+		return sect
 	}
 
 	header := nextSection()
 	count, err := strconv.Atoi(header["Image Count"])
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if count == 0 {
 		err = fmt.Errorf("Failed to parse wim info")
-		return
+		return nil, err
 	}
 
-	info = WimInfo{0: header}
+	info := WimInfo{0: header}
 	for i := 1; i <= count; i++ {
 		index, section := 0, nextSection()
 		index, err = strconv.Atoi(section["Index"])
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		if index != i {
 			err = fmt.Errorf("Failed to parse wim info: %d != %d", index, i)
-			return
+			return nil, err
 		}
 
 		info[i] = section
 	}
 
-	return
+	return info, nil
 }
 
-func DetectWindowsVersion(desc string) (version string) {
-	version = Aliases{
-		"2k12r2": {"2k12r2", "w2k12r2", "win2k12r2", "windows.?server.?2012?.r2"},
-		"2k8r2":  {"2k8r2", "w2k8r2", "win2k8r2", "windows.?server.?2008?.r2"},
+func DetectWindowsVersion(desc string) string {
+	version := Aliases{
+		"2k12R2": {"2k12r2", "w2k12r2", "win2k12r2", "windows.?server.?2012?.r2"},
+		"2k8R2":  {"2k8r2", "w2k8r2", "win2k8r2", "windows.?server.?2008?.r2"},
 		"w8.1":   {"w8.1", "win8.1", "windows.?8.1"},
 	}.MatchString(desc)
 	if version != "" {
-		return
+		return version
 	}
 
 	return Aliases{
@@ -125,19 +132,20 @@ func DetectWindowsVersion(desc string) (version string) {
 		"2k12": {"2k12", "w2k12", "win2k12", "windows.?server.?2012"},
 		"2k16": {"2k16", "w2k16", "win2k16", "windows.?server.?2016"},
 		"2k22": {"2k22", "w2k22", "win2k22", "windows.?server.?2022"},
+		"2k25": {"2k25", "w2k25", "win2k25", "windows.?server.?2025"},
 		"2k3":  {"2k3", "w2k3", "win2k3", "windows.?server.?2003"},
 		"2k8":  {"2k8", "w2k8", "win2k8", "windows.?server.?2008"},
 		"xp":   {"xp", "wxp", "winxp", "windows.?xp"},
 	}.MatchString(desc)
 }
 
-func DetectWindowsArchitecture(desc string) (arch string) {
-	arch = Aliases{
+func DetectWindowsArchitecture(desc string) string {
+	arch := Aliases{
 		"amd64": {"amd64", "x64", "x86_64"},
 		"ARM64": {"arm64", "aarch64"},
 	}.MatchString(desc)
 	if arch != "" {
-		return
+		return arch
 	}
 
 	return Aliases{

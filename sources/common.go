@@ -6,6 +6,7 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -13,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/ioprogress"
-	incus "github.com/lxc/incus/v6/shared/util"
+	"github.com/lxc/incus/v7/shared/ioprogress"
+	incus "github.com/lxc/incus/v7/shared/util"
 	"github.com/sirupsen/logrus"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type common struct {
@@ -30,6 +31,19 @@ type common struct {
 	client     *http.Client
 }
 
+type httpCustomTransport struct{}
+
+func (ct *httpCustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("Accept") == "" {
+		req.Header.Set("Accept", "*/*")
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSHandshakeTimeout = 60 * time.Second
+
+	return transport.RoundTrip(req)
+}
+
 func (s *common) init(ctx context.Context, logger *logrus.Logger, definition shared.Definition, rootfsDir string, cacheDir string, sourcesDir string) {
 	s.logger = logger
 	s.definition = definition
@@ -38,10 +52,7 @@ func (s *common) init(ctx context.Context, logger *logrus.Logger, definition sha
 	s.sourcesDir = sourcesDir
 	s.ctx = ctx
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	// Increase TLS handshake timeout for mirrors which need a bit more time.
-	transport.TLSHandshakeTimeout = 60 * time.Second
-
+	transport := &httpCustomTransport{}
 	s.client = &http.Client{
 		Transport: transport,
 	}
@@ -49,7 +60,7 @@ func (s *common) init(ctx context.Context, logger *logrus.Logger, definition sha
 
 func (s *common) getTargetDir() string {
 	dir := filepath.Join(s.sourcesDir, fmt.Sprintf("%s-%s-%s", s.definition.Image.Distribution, s.definition.Image.Release, s.definition.Image.ArchitectureMapped))
-	dir = strings.Replace(dir, " ", "", -1)
+	dir = strings.ReplaceAll(dir, " ", "")
 	dir = strings.ToLower(dir)
 
 	return dir
@@ -65,7 +76,7 @@ func (s *common) DownloadHash(def shared.DefinitionImage, file, checksum string,
 
 	destDir := s.getTargetDir()
 
-	err = os.MkdirAll(destDir, 0755)
+	err = os.MkdirAll(destDir, 0o755)
 	if err != nil {
 		return "", err
 	}
@@ -232,7 +243,7 @@ func (s *common) VerifyFile(signedFile, signatureFile string) (bool, error) {
 
 // CreateGPGKeyring creates a new GPG keyring.
 func (s *common) CreateGPGKeyring() (string, error) {
-	err := os.MkdirAll(s.getTargetDir(), 0700)
+	err := os.MkdirAll(s.getTargetDir(), 0o700)
 	if err != nil {
 		return "", err
 	}
@@ -242,7 +253,7 @@ func (s *common) CreateGPGKeyring() (string, error) {
 		return "", fmt.Errorf("Failed to create gpg directory: %w", err)
 	}
 
-	err = os.MkdirAll(gpgDir, 0700)
+	err = os.MkdirAll(gpgDir, 0o700)
 	if err != nil {
 		return "", err
 	}
@@ -273,4 +284,23 @@ func (s *common) CreateGPGKeyring() (string, error) {
 	}
 
 	return filepath.Join(gpgDir, "distrobuilder.gpg"), nil
+}
+
+// Checks GPG key requirements.
+func (s *common) validateGPGRequirements(u *url.URL) (bool, error) {
+	hasKeys := len(s.definition.Source.Keys) != 0
+
+	if hasKeys {
+		// GPG keys provided, always verify regardless of protocol
+		return false, nil
+	} else if u.Scheme != "https" {
+		// Force gpg checks when using http
+		return false, fmt.Errorf("GPG keys are required if downloading from %s", u.Scheme)
+	} else if !s.definition.Source.SkipVerification {
+		// HTTPS without keys: warn but allow
+		s.logger.Warnf("Downloading from %s without GPG keys as no keys were specified", u.Scheme)
+		return true, nil
+	}
+
+	return s.definition.Source.SkipVerification, nil
 }

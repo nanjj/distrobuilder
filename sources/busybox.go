@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type busybox struct {
@@ -37,7 +37,7 @@ func (s *busybox) Run() error {
 
 	sourceDir := filepath.Join(s.cacheDir, "src")
 
-	err = os.MkdirAll(sourceDir, 0755)
+	err = os.MkdirAll(sourceDir, 0o755)
 	if err != nil {
 		return fmt.Errorf("Failed to create directory %q: %w", sourceDir, err)
 	}
@@ -63,6 +63,8 @@ cwd="$(pwd)"
 cd "${source_dir}"
 make defconfig
 sed -ri 's/# CONFIG_STATIC .*/CONFIG_STATIC=y/g' .config
+# The tc applet doesn't build against kernel 6.8+ headers (CBQ removal).
+sed -ri 's/^CONFIG_TC=y/# CONFIG_TC is not set/g' .config
 make
 
 cd "${cwd}"
@@ -91,7 +93,7 @@ mv ${source_dir}/busybox "${rootfs_dir}/bin/busybox"
 
 		s.logger.Debugf("Creating directory %q", path)
 
-		err = os.MkdirAll(filepath.Dir(path), 0755)
+		err = os.MkdirAll(filepath.Dir(path), 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create directory %q: %w", filepath.Dir(path), err)
 		}
@@ -105,7 +107,7 @@ mv ${source_dir}/busybox "${rootfs_dir}/bin/busybox"
 	}
 
 	for _, path := range []string{"dev", "mnt", "proc", "root", "sys", "tmp"} {
-		err := os.Mkdir(filepath.Join(s.rootfsDir, path), 0755)
+		err := os.Mkdir(filepath.Join(s.rootfsDir, path), 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create directory %q: %w", filepath.Join(s.rootfsDir, path), err)
 		}

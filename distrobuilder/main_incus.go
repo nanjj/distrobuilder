@@ -10,16 +10,16 @@ import (
 	"path/filepath"
 	"slices"
 
-	client "github.com/lxc/incus/v6/client"
-	"github.com/lxc/incus/v6/shared/api"
+	client "github.com/lxc/incus/v7/client"
+	"github.com/lxc/incus/v7/shared/api"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/distrobuilder/generators"
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/managers"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/generators"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/managers"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type cmdIncus struct {
@@ -315,7 +315,7 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
 	if c.flagVM {
 		vmDir = filepath.Join(c.global.flagCacheDir, "vm")
 
-		err := os.Mkdir(vmDir, 0755)
+		err := os.Mkdir(vmDir, 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create directory %q: %w", vmDir, err)
 		}
@@ -327,7 +327,7 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
 
 		imgFile := filepath.Join(c.global.flagCacheDir, imgFilename)
 
-		vm, err = newVM(c.global.ctx, imgFile, vmDir, c.global.definition.Targets.Incus.VM.Filesystem, c.global.definition.Targets.Incus.VM.Size)
+		vm, err = newVM(c.global.ctx, imgFile, vmDir, c.global.definition.Targets.Incus.VM.Filesystem, c.global.definition.Targets.Incus.VM.Size, c.global.definition.Targets.Incus.VM.BootSize)
 		if err != nil {
 			return fmt.Errorf("Failed to instantiate VM: %w", err)
 		}
@@ -377,13 +377,16 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
 			return fmt.Errorf("Failed to mount UEFI partition: %w", err)
 		}
 
-		rootUUID, err := vm.findRootfsDevUUID()
+		rootUUID, partUUID, err := vm.findRootfsDevUUID()
 		if err != nil {
 			return fmt.Errorf("Failed to find rootfs device UUID: %w", err)
 		}
 
 		c.global.ctx = context.WithValue(c.global.ctx, shared.ContextKeyEnviron,
-			[]string{fmt.Sprintf("%s=%s", shared.EnvRootUUID, rootUUID)})
+			[]string{
+				fmt.Sprintf("%s=%s", shared.EnvRootUUID, rootUUID),
+				fmt.Sprintf("%s=%s", shared.EnvRootPARTUUID, partUUID),
+			})
 		// We cannot use Incus' rsync package as that uses the --delete flag which
 		// causes an issue due to the boot/efi directory being present.
 		err = shared.RsyncLocal(c.global.ctx, overlayDir+"/", vmDir)

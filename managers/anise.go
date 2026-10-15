@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	incus "github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/shared/util"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type anise struct {
@@ -67,13 +67,13 @@ func (m *anise) manageRepository(repoAction shared.DefinitionPackagesRepository)
 	}
 
 	if !incus.PathExists(filepath.Dir(targetFile)) {
-		err := os.MkdirAll(filepath.Dir(targetFile), 0755)
+		err := os.MkdirAll(filepath.Dir(targetFile), 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create directory %q: %w", filepath.Dir(targetFile), err)
 		}
 	}
 
-	f, err := os.OpenFile(targetFile, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(targetFile, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("Failed to open file %q: %w", targetFile, err)
 	}

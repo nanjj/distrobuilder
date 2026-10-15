@@ -156,7 +156,7 @@ lxc-start -n myContainerImage
 With Incus it's possible to run Windows VMs. All you need is a Windows ISO and a bunch of drivers.
 To make the installation a bit easier, `distrobuilder` added the `repack-windows` command. It takes a Windows ISO, and repacks it together with the necessary drivers.
 
-Currently, `distrobuilder` supports Windows 11, Windows 10, Windows 8.1, Windows 8, Windows 7, Windows XP, Windows Server 2022, Windows Server 2019, Windows Server 2016, Windows Server 2012 R2, Windows Server 2012, Windows Server 2008 R2, Windows Server 2008 and Windows Server 2003. The Windows version will automatically be detected, but in case this fails you can use the `--windows-version` flag to set it manually. It supports the values `w11`, `w10`, `w8.1`, `w8`, `w7`, `xp`, `2k22`, `2k19`, `2k16`, `2k12r2`, `2k12`, `2k8r2`, `2k8` and `2k3` for Windows 11, Windows 10, Windows 8.1, Windows 8, Windows 7, Windows XP, Windows Server 2022, Windows Server 2019, Windows Server 2016, Windows Server 2012 R2, Windows Server 2012, Windows Server 2008 R2, Windows Server 2008 and Windows Server 2003 respectively.
+Currently, `distrobuilder` supports Windows 11, Windows 10, Windows 8.1, Windows 8, Windows 7, Windows XP, Windows Server 2022, Windows Server 2025, Windows Server 2019, Windows Server 2016, Windows Server 2012 R2, Windows Server 2012, Windows Server 2008 R2, Windows Server 2008 and Windows Server 2003. The Windows version will automatically be detected, but in case this fails you can use the `--windows-version` flag to set it manually. It supports the values `w11`, `w10`, `w8.1`, `w8`, `w7`, `xp`, `2k22`, `2k25`, `2k19`, `2k16`, `2k12r2`, `2k12`, `2k8r2`, `2k8` and `2k3` for Windows 11, Windows 10, Windows 8.1, Windows 8, Windows 7, Windows XP, Windows Server 2022, Windows Server 2025, Windows Server 2019, Windows Server 2016, Windows Server 2012 R2, Windows Server 2012, Windows Server 2008 R2, Windows Server 2008 and Windows Server 2003 respectively.
 
 Here's how to repack a Windows ISO:
 
@@ -175,7 +175,7 @@ distrobuilder repack-windows -h
 Run the following commands to initialize the VM, to configure (=increase) the allocated disk space and finally attach the full path of your prepared ISO file. Note that the installation of Windows 10 takes about 10GB (before updates), therefore a 30GB disk gives you about 20GB of free space.
 
 ```bash
-incus init win10 --empty --vm -c security.secureboot=false
+incus init win10 --empty --vm -c security.secureboot=false -c image.os="Windows 10"
 incus config device override win10 root size=30GiB
 incus config device add win10 iso disk source=/path/to/Windows-repacked.iso boot.priority=10
 ```

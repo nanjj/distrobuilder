@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lxc/incus/v6/shared/api"
+	"github.com/lxc/incus/v7/shared/api"
 	"gopkg.in/yaml.v2"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 // An IncusImage represents an Incus image.
@@ -26,7 +26,8 @@ type IncusImage struct {
 
 // NewIncusImage returns an IncusImage.
 func NewIncusImage(ctx context.Context, sourceDir, targetDir, cacheDir string,
-	definition shared.Definition) *IncusImage {
+	definition shared.Definition,
+) *IncusImage {
 	return &IncusImage{
 		sourceDir,
 		targetDir,
@@ -86,9 +87,14 @@ func (l *IncusImage) Build(unified bool, compression string, vm bool) (string, s
 
 	if vm {
 		// Create compressed qcow2 image.
-		err = shared.RunCommand(l.ctx, nil, nil, "qemu-img", "convert", "-c", "-O", "qcow2",
-			rawImage,
-			qcowImage)
+		args := []string{"convert"}
+		if compression != "none" {
+			args = append(args, "-c")
+		}
+
+		args = append(args, "-O", "qcow2", rawImage, qcowImage)
+
+		err = shared.RunCommand(l.ctx, nil, nil, "qemu-img", args...)
 		if err != nil {
 			return "", "", fmt.Errorf("Failed to create qcow2 image %q: %w", qcowImage, err)
 		}

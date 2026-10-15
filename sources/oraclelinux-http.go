@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/antchfx/htmlquery"
-	incus "github.com/lxc/incus/v6/shared/util"
+	incus "github.com/lxc/incus/v7/shared/util"
 	"golang.org/x/sys/unix"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type oraclelinux struct {
@@ -48,11 +48,14 @@ func (s *oraclelinux) Run() error {
 		for i := 10; i >= 0; i-- {
 			latestUpdate = fmt.Sprintf("u%d", i)
 
-			if s.definition.Image.Release == "9" {
-				if s.architecture == "x86_64" {
-					fname = fmt.Sprintf("OracleLinux-R9-U%d-%s-boot.iso", i, s.architecture)
-				} else if s.architecture == "aarch64" {
-					fname = fmt.Sprintf("OracleLinux-R9-U%d-%s-dvd.iso", i, s.architecture)
+			if s.definition.Image.Release == "9" || s.definition.Image.Release == "10" {
+				switch s.architecture {
+				case "x86_64":
+					fname = fmt.Sprintf("OracleLinux-R%s-U%d-%s-boot.iso",
+						s.definition.Image.Release, i, s.architecture)
+				case "aarch64":
+					fname = fmt.Sprintf("OracleLinux-R%s-U%d-%s-dvd.iso",
+						s.definition.Image.Release, i, s.architecture)
 				}
 			}
 
@@ -64,7 +67,7 @@ func (s *oraclelinux) Run() error {
 			)
 
 			err = shared.Retry(func() error {
-				resp, err = http.Head(fullURL)
+				resp, err = s.client.Head(fullURL)
 				if err != nil {
 					return errors.New("")
 				}
@@ -99,7 +102,7 @@ func (s *oraclelinux) Run() error {
 		)
 
 		err = shared.Retry(func() error {
-			resp, err = http.Head(fullURL)
+			resp, err = s.client.Head(fullURL)
 			if err != nil {
 				return errors.New("")
 			}
@@ -140,7 +143,7 @@ func (s *oraclelinux) unpackISO(latestUpdate, filePath, rootfsDir string) error 
 	tempRootDir := filepath.Join(s.cacheDir, "rootfs")
 
 	for _, dir := range []string{isoDir, squashfsDir, roRootDir} {
-		err := os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0o755)
 		if err != nil {
 			return fmt.Errorf("Failed to create %q: %w", dir, err)
 		}
@@ -231,7 +234,7 @@ func (s *oraclelinux) unpackISO(latestUpdate, filePath, rootfsDir string) error 
 		array := [][]string{
 			{filepath.Join(tempRootDir, filepath.Base(rpmPkg)), fmt.Sprintf("%s/%s", baseURL, rpmPkg)},
 			{filepath.Join(tempRootDir, filepath.Base(yumPkg)), fmt.Sprintf("%s/%s", baseURL, yumPkg)},
-			{filepath.Join(tempRootDir, "RPM-GPG-KEY-oracle"), "https://oss.oracle.com/ol6/RPM-GPG-KEY-oracle"},
+			{filepath.Join(tempRootDir, "RPM-GPG-KEY-oracle"), "https://yum.oracle.com/RPM-GPG-KEY-oracle-ol10"},
 		}
 
 		for _, elem := range array {
@@ -374,11 +377,12 @@ EOF
 func (s *oraclelinux) getISO(URL string, architecture string) (string, error) {
 	var re *regexp.Regexp
 
-	if architecture == "x86_64" {
+	switch architecture {
+	case "x86_64":
 		re = regexp.MustCompile(fmt.Sprintf("%s-boot(-\\d{8})?.iso", architecture))
-	} else if architecture == "aarch64" {
+	case "aarch64":
 		re = regexp.MustCompile(fmt.Sprintf("%s-boot-uek(-\\d{8})?.iso", architecture))
-	} else {
+	default:
 		return "", fmt.Errorf("Unsupported architecture %q", architecture)
 	}
 

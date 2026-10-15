@@ -6,7 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 // ErrUnknownDownloader represents the unknown downloader error.
@@ -30,6 +30,7 @@ var downloaders = map[string]func() downloader{
 	"alt-http":             func() downloader { return &altLinux{} },
 	"apertis-http":         func() downloader { return &apertis{} },
 	"archlinux-http":       func() downloader { return &archlinux{} },
+	"archbootstrap":        func() downloader { return &archbootstrap{} },
 	"busybox":              func() downloader { return &busybox{} },
 	"centos-http":          func() downloader { return &centOS{} },
 	"debootstrap":          func() downloader { return &debootstrap{} },

@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 func TestTemplateGeneratorRunIncus(t *testing.T) {
@@ -39,7 +39,7 @@ func TestTemplateGeneratorRunIncus(t *testing.T) {
 
 	image := image.NewIncusImage(context.TODO(), cacheDir, "", cacheDir, definition)
 
-	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs", "root"), 0755)
+	err = os.MkdirAll(filepath.Join(cacheDir, "rootfs", "root"), 0o755)
 	require.NoError(t, err)
 
 	createTestFile(t, filepath.Join(cacheDir, "rootfs", "root", "template"), "--test--")

@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type openEuler struct {
@@ -37,7 +37,7 @@ func (s *openEuler) getLatestRelease(baseURL, release string) (string, error) {
 		return "", fmt.Errorf("Failed to parse URL %s: %w", baseURL, err)
 	}
 
-	resp, err = http.Get(baseURL)
+	resp, err = s.client.Get(baseURL)
 	if err != nil {
 		return "", fmt.Errorf("Failed to read url: %w", err)
 	}

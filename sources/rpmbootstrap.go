@@ -5,7 +5,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type rpmbootstrap struct {
@@ -16,17 +16,17 @@ func (s *rpmbootstrap) yumordnf() (cmd string, err error) {
 	// check whether yum or dnf command exists
 	for _, cmd = range []string{"yum", "dnf"} {
 		if err = shared.RunCommand(s.ctx, nil, nil, cmd, "--version"); err == nil {
-			return
+			return cmd, err
 		}
 	}
 	cmd = ""
 	err = fmt.Errorf("Command yum or dnf not found, sudo apt-get install yum or sudo apt-get install dnf and try again")
-	return
+	return cmd, err
 }
 
 func (s *rpmbootstrap) repodirs() (dir string, err error) {
 	reposdir := path.Join(s.sourcesDir, "etc", "yum.repos.d")
-	err = os.MkdirAll(reposdir, 0755)
+	err = os.MkdirAll(reposdir, 0o755)
 	if err != nil {
 		return "", err
 	}
@@ -38,7 +38,7 @@ func (s *rpmbootstrap) repodirs() (dir string, err error) {
 		return "", err
 	}
 
-	err = os.WriteFile(path.Join(reposdir, distribution+".repo"), []byte(content), 0644)
+	err = os.WriteFile(path.Join(reposdir, distribution+".repo"), []byte(content), 0o644)
 	if err != nil {
 		return "", err
 	}
@@ -59,10 +59,12 @@ func (s *rpmbootstrap) Run() (err error) {
 	}
 
 	release := s.definition.Image.Release
-	args := []string{fmt.Sprintf("--installroot=%s", s.rootfsDir),
+	args := []string{
+		fmt.Sprintf("--installroot=%s", s.rootfsDir),
 		fmt.Sprintf("--releasever=%s", release),
 		fmt.Sprintf("--setopt=reposdir=%s", repodir),
-		"install", "-y"}
+		"install", "-y",
+	}
 
 	os.RemoveAll(s.rootfsDir)
 	earlyPackagesRemove := s.definition.GetEarlyPackages("remove")

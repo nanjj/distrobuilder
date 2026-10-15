@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type voidlinux struct {
@@ -98,7 +98,7 @@ func (s *voidlinux) getLatestBuild(baseURL, arch, variant string) (string, error
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(baseURL)
+		resp, err = s.client.Get(baseURL)
 		if err != nil {
 			return fmt.Errorf("Failed to GET %q: %w", baseURL, err)
 		}

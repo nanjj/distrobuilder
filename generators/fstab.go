@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lxc/distrobuilder/image"
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/image"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type fstab struct {
@@ -44,7 +44,7 @@ LABEL=UEFI    /boot/efi vfat  defaults  0 0
 		options = fmt.Sprintf("%s,subvol=@", options)
 	}
 
-	_, err = f.WriteString(fmt.Sprintf(content, fs, options))
+	_, err = fmt.Fprintf(f, content, fs, options)
 	if err != nil {
 		return fmt.Errorf("Failed to write string to file %q: %w", filepath.Join(g.sourceDir, "etc/fstab"), err)
 	}

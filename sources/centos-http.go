@@ -11,9 +11,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type centOS struct {
@@ -35,10 +36,14 @@ func (s *centOS) Run() error {
 		strings.ToLower(s.definition.Image.Release),
 		s.definition.Image.ArchitectureMapped)
 
-	if s.definition.Image.Release == "9-Stream" {
-		baseURL = fmt.Sprintf("%s/%s/BaseOS/%s/iso/", s.definition.Source.URL,
-			strings.ToLower(s.definition.Image.Release),
-			s.definition.Image.ArchitectureMapped)
+	if strings.HasSuffix(s.definition.Image.Release, "-Stream") {
+		versionNum, _ := strconv.ParseInt(
+			strings.Split(s.definition.Image.Release, "-")[0], 0, 64)
+		if versionNum >= 9 {
+			baseURL = fmt.Sprintf("%s/%s/BaseOS/%s/iso/", s.definition.Source.URL,
+				strings.ToLower(s.definition.Image.Release),
+				s.definition.Image.ArchitectureMapped)
+		}
 	}
 
 	s.fname, err = s.getRelease(s.definition.Source.URL, s.definition.Image.Release,
@@ -71,40 +76,40 @@ func (s *centOS) Run() error {
 		return fmt.Errorf("Failed to parse URL %q: %w", baseURL, err)
 	}
 
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
+	}
+
+	s.definition.Source.SkipVerification = skip
+
 	checksumFile := ""
 	if !s.definition.Source.SkipVerification {
-		// Force gpg checks when using http
-		if url.Scheme != "https" {
-			if len(s.definition.Source.Keys) == 0 {
-				return errors.New("GPG keys are required if downloading from HTTP")
+		if s.definition.Image.ArchitectureMapped == "armhfp" {
+			checksumFile = "sha256sum.txt"
+		} else {
+			checksumFile = "sha256sum.txt.asc"
+			if strings.HasPrefix(s.definition.Image.Release, "9") || strings.HasPrefix(s.definition.Image.Release, "10") {
+				checksumFile = "SHA256SUM"
+			} else if strings.HasPrefix(s.definition.Image.Release, "8") {
+				checksumFile = "CHECKSUM"
 			}
+		}
 
-			if s.definition.Image.ArchitectureMapped == "armhfp" {
-				checksumFile = "sha256sum.txt"
-			} else {
-				checksumFile = "sha256sum.txt.asc"
-				if strings.HasPrefix(s.definition.Image.Release, "9") {
-					checksumFile = "SHA256SUM"
-				} else if strings.HasPrefix(s.definition.Image.Release, "8") {
-					checksumFile = "CHECKSUM"
-				}
-			}
+		fpath, err := s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
+		if err != nil {
+			return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile, err)
+		}
 
-			fpath, err := s.DownloadHash(s.definition.Image, baseURL+checksumFile, "", nil)
+		// Only verify file if possible.
+		if strings.HasSuffix(checksumFile, ".asc") {
+			valid, err := s.VerifyFile(filepath.Join(fpath, checksumFile), "")
 			if err != nil {
-				return fmt.Errorf("Failed to download %q: %w", baseURL+checksumFile, err)
+				return fmt.Errorf("Failed to verify %q: %w", checksumFile, err)
 			}
 
-			// Only verify file if possible.
-			if strings.HasSuffix(checksumFile, ".asc") {
-				valid, err := s.VerifyFile(filepath.Join(fpath, checksumFile), "")
-				if err != nil {
-					return fmt.Errorf("Failed to verify %q: %w", checksumFile, err)
-				}
-
-				if !valid {
-					return fmt.Errorf("Invalid signature for %q", checksumFile)
-				}
+			if !valid {
+				return fmt.Errorf("Invalid signature for %q", checksumFile)
 			}
 		}
 	}
@@ -296,20 +301,20 @@ nHpQaKE01aWVSLUiygn7F7rYemGqV9Vt7tBw5pz0vqSC72a5E3zFzIIuHx6aANry
 Gat3aqU3qtBXOrA/dPkX9cWE+UR5wo/A2UdKJZLlGhM2WRJ3ltmGT48V9CeS6N9Y
 m4CKdzvg7EWjlTlFrd/8WJ2KoqOE9leDPeXRPncubJfJ6LLIHyG09h9kKQARAQAB
 tDpDZW50T1MgKENlbnRPUyBPZmZpY2lhbCBTaWduaW5nIEtleSkgPHNlY3VyaXR5
-QGNlbnRvcy5vcmc+iQI3BBMBAgAhBQJczFsZAhsDBgsJCAcDAgYVCAIJCgsDFgIB
-Ah4BAheAAAoJEAW1VbOEg8ZdjOsP/2ygSxH9jqffOU9SKyJDlraL2gIutqZ3B8pl
-Gy/Qnb9QD1EJVb4ZxOEhcY2W9VJfIpnf3yBuAto7zvKe/G1nxH4Bt6WTJQCkUjcs
-N3qPWsx1VslsAEz7bXGiHym6Ay4xF28bQ9XYIokIQXd0T2rD3/lNGxNtORZ2bKjD
-vOzYzvh2idUIY1DgGWJ11gtHFIA9CvHcW+SMPEhkcKZJAO51ayFBqTSSpiorVwTq
-a0cB+cgmCQOI4/MY+kIvzoexfG7xhkUqe0wxmph9RQQxlTbNQDCdaxSgwbF2T+gw
-byaDvkS4xtR6Soj7BKjKAmcnf5fn4C5Or0KLUqMzBtDMbfQQihn62iZJN6ZZ/4dg
-q4HTqyVpyuzMXsFpJ9L/FqH2DJ4exGGpBv00ba/Zauy7GsqOc5PnNBsYaHCply0X
-407DRx51t9YwYI/ttValuehq9+gRJpOTTKp6AjZn/a5Yt3h6jDgpNfM/EyLFIY9z
-V6CXqQQ/8JRvaik/JsGCf+eeLZOw4koIjZGEAg04iuyNTjhx0e/QHEVcYAqNLhXG
-rCTTbCn3NSUO9qxEXC+K/1m1kaXoCGA0UWlVGZ1JSifbbMx0yxq/brpEZPUYm+32
-o8XfbocBWljFUJ+6aljTvZ3LQLKTSPW7TFO+GXycAOmCGhlXh2tlc6iTc41PACqy
-yy+mHmSv
-=kkH7
+QGNlbnRvcy5vcmc+iQI3BBMBCAAhAhsDBgsJCAcDAgYVCAIJCgsDFgIBAh4BAheA
+BQJczFsaAAoJEAW1VbOEg8ZdvOgQAMFTGIQokADy5+CynFKjfO7R0VVpJxmYGVr1
+TjnKaHmjxnJaYqoha9ukGgmLu0r+lJ42Kk6nREk1vlxfRAfiWd00Zkm+K3IMq1/D
+E0heC2vX8qqjsLJs3jzq0hgNvo9X0uHDaA4J1BHsD8sE5in/f4SivjbngvFovRGU
+1XLNCgoqpFNcROP18LqKUw8WtqgWdnYBa5i6D5qx+WMRX0NHNwcCMy1lz+sTFxIU
+9mW6cLsMaacPGD8pUXIVli8P9Vlv3jBk1wFIqRgQPW01ph/3bM7pf9hyM9FAfU4X
+AFcyb1oYI4/82EkICUe6jeuZrz67dPeLVAlYrGW4hp/825g0fqJHxPDp25GS4rAa
+4RqyibLzNjSGdXYeLj2NcB/8OqaP+T1hv3JDaqe70QoYa/GIC4rh15NyXVbUP+LG
+V4vUiL7mb9ynzvF5zYHJbcg4R7dOsiZHrMFwy7FZesQaVrXeJlxRcEj65rpm1ZtZ
+mwAE1k2LsRkvLyr9hpZkXnMeOKYIPwpdmBjXNVNVbq7097OxZOYPPos+iZKMWfl4
+UQnMsCVxonZtamdI4qEc3jMkSZPJKgOplGOms5jdY+EdSvsFWEQ0Snd3dChfU7DV
+o4Rbcy5klwHrvuZIOLaovhyxuRPhP6gV9+gzpTK/7vrvDlFbbZE6s212mDZ13RWB
+mTfAxz4h
+=agO/
 -----END PGP PUBLIC KEY BLOCK-----
 EOF
 	fi
@@ -345,21 +350,19 @@ gpgcheck=1
 enabled=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial
 EOF
-	fi
-
-	# --- Only on Stream 9
-	if grep -q "CentOS Stream 9" /etc/os-release; then
+	# --- Stream 9 onwards
+	elif grep -q "CentOS Stream" /etc/os-release; then
 	cat <<- "EOF" > /etc/yum.repos.d/CentOS-Base.repo
 [baseos]
 name=CentOS Stream $releasever - BaseOS
-baseurl=https://mirror.xenyth.net/centos-stream/$releasever/BaseOS/$basearch/os
+baseurl=https://mirror1.hs-esslingen.de/pub/Mirrors/centos-stream/$releasever/BaseOS/$basearch/os
 gpgcheck=1
 enabled=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial
 
 [appstream]
 name=CentOS Stream $releasever - AppStream
-baseurl=https://mirror.xenyth.net/centos-stream/$releasever/AppStream/$basearch/os
+baseurl=https://mirror1.hs-esslingen.de/pub/Mirrors/centos-stream/$releasever/AppStream/$basearch/os
 gpgcheck=1
 enabled=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial
@@ -397,8 +400,12 @@ func (s *centOS) getRelease(URL, release, variant, arch string) (string, error) 
 	releaseFields := strings.Split(release, ".")
 	u := URL + path.Join("/", strings.ToLower(release), "isos", arch)
 
-	if release == "9-Stream" {
-		u = URL + path.Join("/", strings.ToLower(release), "BaseOS", arch, "iso")
+	if strings.HasSuffix(releaseFields[0], "-Stream") {
+		versionNum, _ := strconv.ParseInt(
+			strings.Split(releaseFields[0], "-")[0], 0, 64)
+		if versionNum >= 9 {
+			u = URL + path.Join("/", strings.ToLower(release), "BaseOS", arch, "iso")
+		}
 	}
 
 	var (
@@ -407,7 +414,7 @@ func (s *centOS) getRelease(URL, release, variant, arch string) (string, error) 
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(u)
+		resp, err = s.client.Get(u)
 		if err != nil {
 			return fmt.Errorf("Failed to get URL %q: %w", u, err)
 		}

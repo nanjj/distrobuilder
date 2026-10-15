@@ -8,7 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 // ErrUnknownManager represents the unknown manager error.
@@ -142,9 +142,10 @@ func (m *Manager) ManagePackages(imageTarget shared.ImageTarget) error {
 	}
 
 	for _, set := range optimizePackageSets(validSets) {
-		if set.Action == "install" {
+		switch set.Action {
+		case "install":
 			err = m.mgr.install(set.Packages, set.Flags)
-		} else if set.Action == "remove" {
+		case "remove":
 			err = m.mgr.remove(set.Packages, set.Flags)
 		}
 

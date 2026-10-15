@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type apertis struct {
@@ -32,7 +32,7 @@ func (s *apertis) Run() error {
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Head(baseURL)
+		resp, err = s.client.Head(baseURL)
 		if err != nil {
 			return fmt.Errorf("Failed to HEAD %q: %w", baseURL, err)
 		}
@@ -94,7 +94,7 @@ func (s *apertis) getLatestRelease(baseURL, release string) (string, error) {
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(baseURL)
+		resp, err = s.client.Get(baseURL)
 		if err != nil {
 			return fmt.Errorf("Failed to GET %q: %w", baseURL, err)
 		}

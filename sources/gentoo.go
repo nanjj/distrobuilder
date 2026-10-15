@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type gentoo struct {
@@ -56,10 +56,12 @@ func (s *gentoo) Run() error {
 		return fmt.Errorf("Failed to parse %q: %w", tarball, err)
 	}
 
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" &&
-		len(s.definition.Source.Keys) == 0 {
-		return errors.New("GPG keys are required if downloading from HTTP")
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
 	}
+
+	s.definition.Source.SkipVerification = skip
 
 	var fpath string
 
@@ -73,22 +75,21 @@ func (s *gentoo) Run() error {
 		return fmt.Errorf("Failed to download %q: %w", tarball, err)
 	}
 
-	// Force gpg checks when using http
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" {
-		_, err = s.DownloadHash(s.definition.Image, tarball+".DIGESTS.asc", "", nil)
+	if !s.definition.Source.SkipVerification {
+		_, err = s.DownloadHash(s.definition.Image, tarball+".DIGESTS", "", nil)
 		if err != nil {
-			return fmt.Errorf("Failed to download %q: %w", tarball+".DIGESTS.asc", err)
+			return fmt.Errorf("Failed to download %q: %w", tarball+".DIGESTS", err)
 		}
 
 		valid, err := s.VerifyFile(
-			filepath.Join(fpath, fname+".DIGESTS.asc"),
+			filepath.Join(fpath, fname+".DIGESTS"),
 			"")
 		if err != nil {
-			return fmt.Errorf("Failed to verify %q: %w", filepath.Join(fpath, fname+".DIGESTS.asc"), err)
+			return fmt.Errorf("Failed to verify %q: %w", filepath.Join(fpath, fname+".DIGESTS"), err)
 		}
 
 		if !valid {
-			return fmt.Errorf("Failed to verify %q", fname+".DIGESTS.asc")
+			return fmt.Errorf("Failed to verify %q", fname+".DIGESTS")
 		}
 	}
 
@@ -111,16 +112,27 @@ func (s *gentoo) Run() error {
 		return fmt.Errorf("Failed to download %q: %w", tarball, err)
 	}
 
-	// Force gpg checks when using http
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" {
+	url, err = url.Parse(tarball)
+	if err != nil {
+		return fmt.Errorf("Failed to parse %q: %w", tarball, err)
+	}
+
+	skip, err = s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
+	}
+
+	s.definition.Source.SkipVerification = skip
+
+	if !s.definition.Source.SkipVerification {
 		_, err = s.DownloadHash(s.definition.Image, tarball+".gpgsig", "", nil)
 		if err != nil {
 			return fmt.Errorf("Failed to download %q: %w", tarball+".gpgsig", err)
 		}
 
 		valid, err := s.VerifyFile(
-			filepath.Join(fpath, fname+".gpgsig"),
-			"")
+			filepath.Join(fpath, fname),
+			filepath.Join(fpath, fname+".gpgsig"))
 		if err != nil {
 			return fmt.Errorf("Failed to verify %q: %w", filepath.Join(fpath, fname+".gpgsig"), err)
 		}
@@ -158,7 +170,7 @@ func (s *gentoo) getLatestBuild(baseURL, arch, variant string) (string, error) {
 	)
 
 	err = shared.Retry(func() error {
-		resp, err = http.Get(baseURL)
+		resp, err = s.client.Get(baseURL)
 		if err != nil {
 			return fmt.Errorf("Failed to GET %q: %w", baseURL, err)
 		}

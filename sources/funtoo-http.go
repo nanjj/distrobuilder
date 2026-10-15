@@ -1,12 +1,11 @@
 package sources
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
 
-	"github.com/lxc/distrobuilder/shared"
+	"github.com/lxc/distrobuilder/v3/shared"
 )
 
 type funtoo struct {
@@ -16,13 +15,15 @@ type funtoo struct {
 // Run downloads a Funtoo stage3 tarball.
 func (s *funtoo) Run() error {
 	topLevelArch := s.definition.Image.ArchitectureMapped
-	if topLevelArch == "generic_32" {
+
+	switch topLevelArch {
+	case "generic_32":
 		topLevelArch = "x86-32bit"
-	} else if topLevelArch == "generic_64" {
+	case "generic_64":
 		topLevelArch = "x86-64bit"
-	} else if topLevelArch == "armv7a_vfpv3_hardfp" {
+	case "armv7a_vfpv3_hardfp":
 		topLevelArch = "arm-32bit"
-	} else if topLevelArch == "arm64_generic" {
+	case "arm64_generic":
 		topLevelArch = "arm-64bit"
 	}
 
@@ -45,10 +46,12 @@ func (s *funtoo) Run() error {
 		return fmt.Errorf("Failed to parse URL %q: %w", tarball, err)
 	}
 
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" &&
-		len(s.definition.Source.Keys) == 0 {
-		return errors.New("GPG keys are required if downloading from HTTP")
+	skip, err := s.validateGPGRequirements(url)
+	if err != nil {
+		return fmt.Errorf("Failed to validate GPG requirements: %w", err)
 	}
+
+	s.definition.Source.SkipVerification = skip
 
 	var fpath string
 
@@ -57,8 +60,7 @@ func (s *funtoo) Run() error {
 		return fmt.Errorf("Failed to download %q: %w", tarball, err)
 	}
 
-	// Force gpg checks when using http
-	if !s.definition.Source.SkipVerification && url.Scheme != "https" {
+	if !s.definition.Source.SkipVerification {
 		_, err = s.DownloadHash(s.definition.Image, tarball+".gpg", "", nil)
 		if err != nil {
 			return fmt.Errorf("Failed to download %q: %w", tarball+".gpg", err)
